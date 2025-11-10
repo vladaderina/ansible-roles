@@ -1,0 +1,32 @@
+# Ansible Managed
+*filter
+:INPUT {{ iptables_default_policies.INPUT }} [0:0]
+:FORWARD {{ iptables_default_policies.FORWARD }} [0:0]
+:OUTPUT {{ iptables_default_policies.OUTPUT }} [0:0]
+
+{# Базовые правила #}
+{% for rule in iptables_base_rules %}
+{{ rule }}
+{% endfor %}
+
+{# TCP порты #}
+{% for port in iptables_tcp_ports %}
+-A INPUT -p tcp -m tcp --dport {{ port }} -j ACCEPT
+{% endfor %}
+
+{# TCP диапазоны #}
+{% for range in iptables_tcp_ranges %}
+-A INPUT -p tcp -m tcp --dport {{ range }} -j ACCEPT
+{% endfor %}
+
+{# UDP порты #}
+{% for port in iptables_udp_ports %}
+-A INPUT -p udp -m udp --dport {{ port }} -j ACCEPT
+{% endfor %}
+
+{# Reject правила #}
+{% for rule in iptables_reject_rules %}
+{{ rule }}
+{% endfor %}
+
+COMMIT

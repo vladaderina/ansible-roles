@@ -1,0 +1,31 @@
+---
+- name: Configure wheel group sudoers
+  lineinfile:
+    path: /etc/sudoers
+    regexp: '^#\s*%wheel\s+ALL=\(ALL\)\s+NOPASSWD:\s+ALL'
+    line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+    validate: 'visudo -cf %s'
+  tags: sudo
+
+- name: Install common packages
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ common_packages }}"
+  tags: packages
+
+- name: Install CentOS specific packages
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ centos_packages }}"
+  when: ansible_distribution == "CentOS"
+  tags: packages
+
+- name: Install RedOS specific packages
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ redos_packages }}"
+  when: ansible_distribution == "RedOS"
+  tags: packages

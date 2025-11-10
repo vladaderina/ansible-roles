@@ -1,0 +1,25 @@
+old_docker_packages:
+  - docker
+  - docker-client
+  - docker-client-latest
+  - docker-common
+  - docker-latest
+  - docker-latest-logrotate
+  - docker-logrotate
+  - docker-engine
+
+docker_packages_centos:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-compose-plugin
+
+docker_packages_redos:
+  - docker-ce
+  - docker-ce-cli
+  - docker-compose-plugin
+
+docker_config:
+  live_restore: true
+  insecure_registries: ["nexus.rzd"]
+  registry_mirrors: ["https://nexus.rzd"]

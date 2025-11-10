@@ -1,0 +1,74 @@
+---
+- name: Remove old Docker packages (CentOS)
+  package:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ old_docker_packages }}"
+  when: ansible_distribution == "CentOS"
+  tags: docker
+
+- name: Install Docker CE (CentOS)
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ docker_packages_centos }}"
+  when: ansible_distribution == "CentOS"
+  tags: docker
+
+- name: Install Docker CE (RedOS)
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ docker_packages_redos }}"
+  when: ansible_distribution == "RedOS"
+  tags: docker
+
+- name: Create docker directory
+  file:
+    path: /etc/docker
+    state: directory
+    mode: 0755
+  tags: docker
+
+- name: Configure Docker daemon
+  template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    mode: 0644
+  notify: restart docker
+  tags: docker
+
+- name: Enable and start Docker service
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags: docker
+
+- name: Create docker-compose symlink
+  file:
+    src: /usr/libexec/docker/cli-plugins/docker-compose
+    dest: /usr/bin/docker-compose
+    state: link
+    force: yes
+  tags: docker
+
+- name: Verify Docker installation
+  command: docker --version
+  register: docker_version
+  changed_when: false
+  tags: docker
+
+- name: Verify Docker Compose installation
+  command: docker-compose --version
+  register: docker_compose_version
+  changed_when: false
+  tags: docker
+
+- name: Show installation results
+  debug:
+    msg:
+      - "Docker: {{ docker_version.stdout }}"
+      - "Docker Compose: {{ docker_compose_version.stdout }}"
+  tags: docker

@@ -1,0 +1,4 @@
+---
+selinux_state: permissive  # enforcing | permissive | disabled
+selinux_policy: targeted   # targeted | minimum | mls
+selinux_require_reboot: false  # Требуется ли перезагрузка для внесения изменений

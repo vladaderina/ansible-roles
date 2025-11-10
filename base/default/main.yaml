@@ -1,0 +1,25 @@
+---
+# Common packages
+common_packages:
+  - mc
+  - zip
+  - unzip
+  - htop
+  - ncdu
+  - curl
+  - nano
+  - telnet
+  - nmap
+  - tcpdump
+  - bind-utils
+  - net-tools
+  - wget
+  - jq
+
+# OS-specific packages
+centos_packages:
+  - p7zip
+  - p7zip-plugins
+  - postgresql13
+
+redos_packages: []
