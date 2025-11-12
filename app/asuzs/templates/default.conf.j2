@@ -1,0 +1,71 @@
+{% for server in nginx_config.servers %}
+server {
+    listen {{ nginx_config.listen_port }}{% if nginx_config.ssl_enabled %} ssl{% endif %};
+    server_name {{ server.server_name }};
+    {% if server.server_name == '_' and nginx_config.default_server %}default_server;{% endif %}
+    
+    {# Базовые таймауты #}
+    client_body_timeout {{ client_body_timeout }};
+    client_header_timeout {{ client_header_timeout }};
+    send_timeout {{ send_timeout }};
+    keepalive_timeout {{ keepalive_timeout }};
+    
+    {# Настройки безопасности #}
+    {% if security_headers %}
+    add_header X-Frame-Options {{ x_frame_options }} always;
+    add_header X-Content-Type-Options {{ x_content_type_options }} always;
+    add_header X-XSS-Protection {{ x_xss_protection }} always;
+    {% endif %}
+    
+    {# SSL конфигурация #}
+    {% if nginx_config.ssl_enabled %}
+    ssl_certificate {{ ssl_certificate }};
+    ssl_certificate_key {{ ssl_certificate_key }};
+    ssl_protocols {{ ssl_protocols }};
+    ssl_ciphers {{ ssl_ciphers }};
+    ssl_prefer_server_ciphers {{ ssl_prefer_server_ciphers }};
+    
+    {# Дополнительные SSL директивы #}
+    {% for directive in nginx_ssl_directives %}
+    {{ directive }};
+    {% endfor %}
+    {% endif %}
+    
+    {# Дополнительные server директивы #}
+    {% for directive in nginx_server_directives %}
+    {{ directive }};
+    {% endfor %}
+    
+    {# Location includes #}
+    {% for location in server.locations %}
+    include {{ location }};
+    {% endfor %}
+}
+{% endfor %}
+
+{# Глобальные настройки nginx #}
+events {
+    worker_connections {{ nginx_worker_connections }};
+}
+
+http {
+    {# Gzip настройки #}
+    {% if gzip_enabled %}
+    gzip on;
+    gzip_types {{ gzip_types }};
+    gzip_min_length {{ gzip_min_length }};
+    gzip_comp_level {{ gzip_comp_level }};
+    {% endif %}
+    
+    {# Прокси настройки #}
+    proxy_connect_timeout {{ proxy_connect_timeout }};
+    proxy_send_timeout {{ proxy_send_timeout }};
+    proxy_read_timeout {{ proxy_read_timeout }};
+    proxy_buffers {{ proxy_buffers }};
+    proxy_buffer_size {{ proxy_buffer_size }};
+    
+    {# Client настройки #}
+    client_max_body_size {{ nginx_client_max_body_size }};
+    
+    {# Дополнительные HTTP директивы могут быть добавлены здесь #}
+}

@@ -1,0 +1,218 @@
+---
+- name: Validate variables
+  ansible.builtin.assert:
+    that:
+      - app_dir is defined
+      - app_repo is defined
+      - app_environment is defined
+    msg: "Required variables app_dir, app_repo, app_environment must be defined"
+
+- name: Check if application directory exists
+  ansible.builtin.stat:
+    path: "{{ app_dir }}"
+  register: app_dir_stat
+
+- name: Create application working directory
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: not app_dir_stat.stat.exists
+
+- name: Check if repository already cloned
+  ansible.builtin.stat:
+    path: "{{ app_dir }}/.git"
+  register: git_repo_stat
+
+- name: Clone repository if not exists
+  ansible.builtin.git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_dir }}"
+    version: master
+    force: yes
+  when: not git_repo_stat.stat.exists
+
+- name: Configure git credential storage
+  ansible.builtin.command:
+    cmd: "git config credential.helper store"
+    chdir: "{{ app_dir }}"
+  when: not git_repo_stat.stat.exists
+
+- name: Get current git commit before update
+  ansible.builtin.command:
+    cmd: "git rev-parse HEAD"
+    chdir: "{{ app_dir }}"
+  register: current_commit
+  when: git_repo_stat.stat.exists
+
+- name: Fetch latest changes from repository
+  ansible.builtin.git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_dir }}"
+    version: master
+    update: yes
+    force: yes
+  when: git_repo_stat.stat.exists
+  register: git_update
+
+- name: Get new git commit after update
+  ansible.builtin.command:
+    cmd: "git rev-parse HEAD"
+    chdir: "{{ app_dir }}"
+  register: new_commit
+  when: git_repo_stat.stat.exists and git_update.changed
+
+- name: Create backup if code was updated
+  ansible.builtin.command:
+    cmd: "cp -r {{ app_dir }} {{ app_dir }}_{{ ansible_date_time.date }}_{{ new_commit.stdout[:8] }}"
+  when: 
+    - git_repo_stat.stat.exists
+    - git_update.changed
+    - current_commit.stdout != new_commit.stdout
+  register: backup_created
+
+- name: Make scripts executable
+  ansible.builtin.file:
+    path: "{{ app_dir }}/{{ item }}"
+    mode: '0755'
+    state: file
+  loop:
+    - "install/app_CentOS7.sh"
+    - "setup.sh"
+    - "do.sh"
+  ignore_errors: yes
+
+- name: Check if installation is needed
+  ansible.builtin.stat:
+    path: "{{ app_dir }}/.installed"
+  register: installation_flag
+
+- name: Run installation script for new deployment
+  ansible.builtin.command:
+    cmd: "./app_CentOS7.sh"
+    chdir: "{{ app_dir }}/install"
+  async: 1800
+  poll: 30
+  environment:
+    COMPOSE_PROFILES: "{{ app_environment }}"
+  when: not installation_flag.stat.exists
+  register: installation_result
+
+- name: Create installation flag file
+  ansible.builtin.file:
+    path: "{{ app_dir }}/.installed"
+    state: touch
+    owner: root
+    group: root
+    mode: '0644'
+  when: installation_result is changed or installation_result is succeeded
+
+- name: Create configuration files from templates
+  ansible.builtin.template:
+    src: "{{ item.src }}.j2"
+    dest: "{{ app_dir }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode | default('0644') }}"
+    backup: yes
+  loop:
+    - { src: "nginx.conf", dest: "nginx/conf.d/default.conf", mode: "0644" }
+    - { src: "config.env", dest: "config.env", mode: "0644" }
+  notify: restart application
+
+- name: Setup environment configuration
+  ansible.builtin.command:
+    cmd: "./setup.sh {{ app_environment }}"
+    chdir: "{{ app_dir }}"
+  when: 
+    - git_repo_stat.stat.exists
+    - git_update.changed
+  register: setup_result
+  notify: restart application
+
+- name: Check if Docker Compose is running
+  community.docker.docker_compose_info:
+    project_src: "{{ app_dir }}"
+  register: compose_status
+
+- name: Start application with Docker Compose
+  community.docker.docker_compose:
+    project_src: "{{ app_dir }}"
+    files:
+      - "docker-compose.yml"
+      - "services-cmn.yml"
+      - "docker-compose.k22.yml"
+      - "services-utl.yml"
+    state: present
+    restarted: no
+    recreate: no
+    remove_orphans: yes
+    stopped: no
+  environment:
+    COMPOSE_PROFILES: "{{ app_environment }}"
+  when: 
+    - installation_flag.stat.exists or git_update.changed or setup_result is changed
+  notify: check application health
+
+- name: Force recreate containers if code was updated
+  community.docker.docker_compose:
+    project_src: "{{ app_dir }}"
+    files:
+      - "docker-compose.yml"
+      - "services-cmn.yml"
+      - "docker-compose.k22.yml"
+      - "services-utl.yml"
+    state: present
+    restarted: no
+    recreate: always
+    remove_orphans: yes
+  environment:
+    COMPOSE_PROFILES: "{{ app_environment }}"
+  when: 
+    - git_repo_stat.stat.exists
+    - git_update.changed
+    - current_commit.stdout != new_commit.stdout
+
+- name: Remove unused Docker images
+  community.docker.docker_image_prune:
+    filters:
+      dangling: true
+  when: git_update.changed
+
+- name: Update installation if major changes detected
+  ansible.builtin.command:
+    cmd: "./do.sh update"
+    chdir: "{{ app_dir }}"
+  environment:
+    COMPOSE_PROFILES: "{{ app_environment }}"
+  when: 
+    - git_repo_stat.stat.exists
+    - git_update.changed
+    - current_commit.stdout != new_commit.stdout
+  async: 600
+  poll: 15
+
+handlers:
+  - name: restart application
+    community.docker.docker_compose:
+      project_src: "{{ app_dir }}"
+      files:
+        - "docker-compose.yml"
+        - "services-cmn.yml"
+        - "docker-compose.k22.yml"
+        - "services-utl.yml"
+      state: present
+      restarted: yes
+      recreate: always
+      remove_orphans: yes
+    environment:
+      COMPOSE_PROFILES: "{{ app_environment }}"
+
+  - name: check application health
+    ansible.builtin.wait_for:
+      path: "{{ app_dir }}/.health_check"
+      state: present
+      timeout: 300
+    ignore_errors: yes
