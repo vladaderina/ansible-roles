@@ -12,9 +12,10 @@ galaxy_info:
       versions:
         - 7
 dependencies:
-  - role: nginx
+  - role: base
     src: https://github.com/vladaderina/ansible-roles.git
     version: test
     path: example/base
     dest: ./roles
     name: base-test-dependences
+
