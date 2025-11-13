@@ -15,3 +15,4 @@ dependencies:
   - role: app-demo
     src: https://github.com/vladaderina/ansible-roles.git
     version: app-demo
+    scm: git
