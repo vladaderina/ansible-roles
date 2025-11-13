@@ -11,3 +11,10 @@ galaxy_info:
     - name: CentOS
       versions:
         - 7
+dependencies:
+  - role: nginx
+    src: https://github.com/vladaderina/ansible-roles.git
+    version: test
+    path: example/base
+    dest: ./roles
+    name: base-test-dependences
