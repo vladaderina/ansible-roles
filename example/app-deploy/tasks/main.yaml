@@ -1,0 +1,101 @@
+---
+# INSTALL TASKS
+- name: APP | Create application directory structure
+  file:
+    path: "{{ app_home }}/app"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+  tags: [install]
+
+- name: APP | Deploy main application code with vault secrets
+  template:
+    src: app.py.j2
+    dest: "{{ app_home }}/app/app.py"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0644"
+  notify: restart app
+  tags: [install]
+
+- name: APP | Deploy gunicorn configuration template
+  template:
+    src: gunicorn.conf.j2
+    dest: "{{ app_home }}/app/gunicorn.conf.py"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0644"
+  notify: restart app
+  tags: [install]
+
+- name: APP | Create environment file with vault secrets
+  template:
+    src: environment.j2
+    dest: "{{ app_home }}/app/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+  notify: restart app
+  tags: [install]
+
+- name: APP | Create systemd service file
+  template:
+    src: app.service.j2
+    dest: "/etc/systemd/system/{{ app_name }}.service"
+    mode: "0644"
+  notify: reload systemd
+  tags: [install]
+
+- name: APP | Start application service
+  systemd:
+    name: "{{ app_name }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags: [install]
+
+# UPDATE TASKS
+- name: APP | Check if application is already installed
+  stat:
+    path: "{{ app_home }}/app/app.py"
+  register: app_installed
+  tags: [update]
+
+- name: APP | Backup current application before update
+  shell: |
+    cp "{{ app_home }}/app/app.py" "{{ app_home }}/backups/app.py.backup.$(date +%Y%m%d_%H%M%S)"
+  args:
+    executable: /bin/bash
+  when: app_installed.stat.exists
+  tags: [update]
+
+- name: APP | Update application code to new version
+  template:
+    src: app.py.j2
+    dest: "{{ app_home }}/app/app.py"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0644"
+    backup: yes
+  notify: restart app
+  when: app_installed.stat.exists
+  tags: [update]
+
+- name: APP | Update environment configuration
+  template:
+    src: environment.j2
+    dest: "{{ app_home }}/app/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+  notify: restart app
+  when: app_installed.stat.exists
+  tags: [update]
+
+- name: APP | Restart application after update
+  systemd:
+    name: "{{ app_name }}"
+    state: restarted
+  when: app_installed.stat.exists
+  tags: [update]

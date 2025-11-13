@@ -1,0 +1,47 @@
+---
+- name: WEBSERVER | Install nginx
+  apt:
+    name: nginx
+    state: present
+  tags: [webserver]
+
+- name: WEBSERVER | Create nginx site configuration
+  template:
+    src: nginx.conf.j2
+    dest: "/etc/nginx/sites-available/{{ app_name }}"
+    mode: "0644"
+  notify: restart nginx
+  tags: [webserver]
+
+- name: WEBSERVER | Enable nginx site
+  file:
+    src: "/etc/nginx/sites-available/{{ app_name }}"
+    dest: "/etc/nginx/sites-enabled/{{ app_name }}"
+    state: link
+  notify: restart nginx
+  tags: [webserver]
+
+- name: WEBSERVER | Disable default nginx site
+  file:
+    path: "/etc/nginx/sites-enabled/default"
+    state: absent
+  notify: restart nginx
+  tags: [webserver]
+
+- name: WEBSERVER | Start nginx service
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+  tags: [webserver]
+
+- name: WEBSERVER | Validate nginx configuration
+  command: nginx -t
+  register: nginx_validation
+  changed_when: false
+  tags: [webserver]
+
+- name: WEBSERVER | Show nginx status
+  debug:
+    msg: "Nginx настроен и работает на порту {{ nginx_port }} → приложение на порту {{ app_port }}"
+  tags: [webserver]

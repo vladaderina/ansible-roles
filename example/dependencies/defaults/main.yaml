@@ -1,0 +1,26 @@
+---
+# Common packages for all distributions
+common_packages:
+  - curl
+  - wget
+  - git
+  - htop
+
+# Distribution-specific packages
+debian_packages:
+  - python3-pip
+  - python3-venv
+  - nginx
+
+redhat_packages:
+  - python3-pip
+  - python3-virtualenv
+  - nginx
+  - epel-release
+
+# Python packages
+python_packages:
+  - python3-flask
+  - python3-gunicorn
+  - python3-requests
+  - python3-psutil

@@ -1,0 +1,12 @@
+bind = "0.0.0.0:{{ app_port }}"
+workers = {{ app_workers }}
+worker_class = "sync"
+max_requests = 1000
+timeout = 30
+preload_app = True
+
+accesslog = "{{ app_home }}/logs/gunicorn-access.log"
+errorlog = "{{ app_home }}/logs/gunicorn-error.log"
+loglevel = "info"
+
+proc_name = "{{ app_name }}"

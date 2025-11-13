@@ -1,0 +1,51 @@
+---
+- name: DEPS | Show current distribution
+  debug:
+    msg: "Обнаружен дистрибутив: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+  tags: [deps, info]
+
+- name: DEPS | Update package cache for Debian/Ubuntu
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+  tags: [deps, debian]
+
+- name: DEPS | Update package cache for RedHat/CentOS
+  yum:
+    update_cache: yes
+  when: ansible_os_family == "RedHat"
+  tags: [deps, redhat]
+
+- name: DEPS | Install common packages
+  package:
+    name: "{{ common_packages }}"
+    state: present
+  tags: [deps, common]
+
+- name: DEPS | Install Debian-specific packages
+  apt:
+    name: "{{ debian_packages }}"
+    state: present
+  when: ansible_os_family == "Debian"
+  tags: [deps, debian]
+
+- name: DEPS | Install RedHat-specific packages
+  yum:
+    name: "{{ redhat_packages }}"
+    state: present
+  when: ansible_os_family == "RedHat"
+  tags: [deps, redhat]
+
+- name: DEPS | Install Python packages
+  apt:
+    name: "{{ python_packages }}"
+    state: present
+  tags: [deps, python]
+
+- name: DEPS | Show skipped tasks demonstration
+  debug:
+    msg: |
+      Задачи для {{ ansible_os_family }} выполнены
+      Задачи для других дистрибутивов пропущены
+  tags: [deps, info]

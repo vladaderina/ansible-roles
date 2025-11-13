@@ -1,0 +1,17 @@
+---
+# Host settings
+app_home: "/home/{{ app_name }}"
+timezone: "Europe/Moscow"
+
+# Users settings
+app_name: "demoapp"
+app_user: "{{ app_name }}"
+app_group: "{{ app_name }}"
+
+# Network settings
+firewall_enabled: true
+allowed_ports:
+  - 22    # SSH
+  - 80    # HTTP
+  - 443   # HTTPS
+  - 8000  # App port
