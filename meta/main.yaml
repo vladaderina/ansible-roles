@@ -12,10 +12,10 @@ galaxy_info:
       versions:
         - 7
 dependencies:
-  - role: base
+  - role: app-demo
     src: https://github.com/vladaderina/ansible-roles.git
-    version: test
-    path: example/base
+    version: app-demo
     dest: ./roles
-    name: base-test-dependences
+    name: app-demo-dependences
+
 
