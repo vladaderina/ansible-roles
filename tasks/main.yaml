@@ -1,77 +1,101 @@
 ---
-- name: BASE | Create application group
-  group:
-    name: "{{ app_group }}"
-    state: present
-  tags: [base]
-
-- name: BASE | Create application user
-  user:
-    name: "{{ app_user }}"
-    group: "{{ app_group }}"
-    home: "{{ app_home }}"
-    shell: "/bin/bash"
-    create_home: yes
-    state: present
-  tags: [base]
-
-- name: BASE | Create application directories
+# INSTALL TASKS
+- name: APP | Create application directory structure
   file:
-    path: "{{ item.path }}"
+    path: "{{ app_home }}/app"
     state: directory
     owner: "{{ app_user }}"
     group: "{{ app_group }}"
-    mode: "{{ item.mode }}"
-  loop:
-    - { path: "{{ app_home }}/app", mode: "0755" }
-    - { path: "{{ app_home }}/logs", mode: "0755" }
-    - { path: "{{ app_home }}/data", mode: "0750" }
-    - { path: "{{ app_home }}/backups", mode: "0750" }
-    - { path: "{{ app_home }}/config", mode: "0750" }
-  tags: [base]
+    mode: "0755"
+  tags: [install]
 
-- name: BASE | Set timezone
-  timezone:
-    name: "{{ timezone }}"
-  tags: [base]
+- name: APP | Deploy main application code with vault secrets
+  template:
+    src: app.py.j2
+    dest: "{{ app_home }}/app/app.py"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0644"
+  notify: restart app
+  tags: [install]
 
-- name: BASE | Configure firewall - allow essential ports
-  ufw:
-    rule: "{{ item.rule }}"
-    port: "{{ item.port }}"
-    proto: "{{ item.proto | default('tcp') }}"
-  loop:
-    - { rule: "allow", port: "22", proto: "tcp", comment: "SSH" }
-    - { rule: "allow", port: "80", proto: "tcp", comment: "HTTP" }
-    - { rule: "allow", port: "443", proto: "tcp", comment: "HTTPS" }
-    - { rule: "allow", port: "8000", proto: "tcp", comment: "App Port" }
-  when: firewall_enabled and ansible_os_family == "Debian"
-  tags: [base, network, firewall]
+- name: APP | Deploy gunicorn configuration template
+  template:
+    src: gunicorn.conf.j2
+    dest: "{{ app_home }}/app/gunicorn.conf.py"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0644"
+  notify: restart app
+  tags: [install]
 
-- name: BASE | Enable firewall with default deny
-  ufw:
-    state: enabled
-    policy: deny
-    direction: incoming
-  when: firewall_enabled and ansible_os_family == "Debian"
-  tags: [base, network, firewall]
+- name: APP | Create environment file with vault secrets
+  template:
+    src: environment.j2
+    dest: "{{ app_home }}/app/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+  notify: restart app
+  tags: [install]
 
-- name: BASE | Configure network kernel parameters for web server
-  sysctl:
-    name: "{{ item.name }}"
-    value: "{{ item.value }}"
-    state: present
-    reload: yes
-  loop:
-    - { name: "net.core.somaxconn", value: "65535" }
-    - { name: "net.ipv4.tcp_max_syn_backlog", value: "65535" }
-    - { name: "net.ipv4.ip_local_port_range", value: "1024 65535" }
-    - { name: "net.ipv4.tcp_tw_reuse", value: "1" }
-  tags: [base, network, performance]
+- name: APP | Create systemd service file
+  template:
+    src: app.service.j2
+    dest: "/etc/systemd/system/{{ app_name }}.service"
+    mode: "0644"
+  notify: reload systemd
+  tags: [install]
 
-- name: BASE | Verify firewall status
-  command: ufw status verbose
-  register: ufw_status
-  changed_when: false
-  when: firewall_enabled and ansible_os_family == "Debian"
-  tags: [base, network, firewall]
+- name: APP | Start application service
+  systemd:
+    name: "{{ app_name }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags: [install]
+
+# UPDATE TASKS
+- name: APP | Check if application is already installed
+  stat:
+    path: "{{ app_home }}/app/app.py"
+  register: app_installed
+  tags: [update]
+
+- name: APP | Backup current application before update
+  shell: |
+    cp "{{ app_home }}/app/app.py" "{{ app_home }}/backups/app.py.backup.$(date +%Y%m%d_%H%M%S)"
+  args:
+    executable: /bin/bash
+  when: app_installed.stat.exists
+  tags: [update]
+
+- name: APP | Update application code to new version
+  template:
+    src: app.py.j2
+    dest: "{{ app_home }}/app/app.py"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0644"
+    backup: yes
+  notify: restart app
+  when: app_installed.stat.exists
+  tags: [update]
+
+- name: APP | Update environment configuration
+  template:
+    src: environment.j2
+    dest: "{{ app_home }}/app/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+  notify: restart app
+  when: app_installed.stat.exists
+  tags: [update]
+
+- name: APP | Restart application after update
+  systemd:
+    name: "{{ app_name }}"
+    state: restarted
+  when: app_installed.stat.exists
+  tags: [update]

@@ -1,0 +1,54 @@
+from flask import Flask, jsonify
+import datetime
+import socket
+import os
+import psutil
+import hashlib
+
+app = Flask(__name__)
+app_version = "{{ app_version }}"
+
+# Секреты из vault
+SECRET_KEY = "{{ secret_key }}"
+API_TOKEN = "{{ api_secret_key }}"
+DB_PASSWORD = "{{ db_password }}"
+
+@app.route('/')
+def hello():
+    return jsonify({
+        'message': 'Welcome to {{ app_display_name }}! 🚀',
+        'version': app_version,
+        'hostname': socket.gethostname(),
+        'timestamp': datetime.datetime.now().isoformat(),
+        'status': 'running',
+        'environment': '{{ app_environment }}',
+        'secrets_loaded': bool(SECRET_KEY and API_TOKEN)
+    })
+
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'healthy', 
+        'version': app_version,
+        'secrets': 'loaded' if SECRET_KEY else 'missing'
+    })
+
+@app.route('/info')
+def info():
+    secret_hash = hashlib.sha256(SECRET_KEY.encode()).hexdigest()[:16] if SECRET_KEY else 'not-set'
+    api_hash = hashlib.sha256(API_TOKEN.encode()).hexdigest()[:16] if API_TOKEN else 'not-set'
+    
+    return jsonify({
+        'app': '{{ app_name }}',
+        'version': app_version,
+        'security': {
+            'secret_configured': bool(SECRET_KEY),
+            'secret_hash': f"sha256:{secret_hash}",
+            'api_configured': bool(API_TOKEN),
+            'api_hash': f"sha256:{api_hash}",
+            'db_configured': bool(DB_PASSWORD)
+        }
+    })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port={{ app_port }})

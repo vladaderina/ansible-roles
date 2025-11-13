@@ -1,6 +1,0 @@
----
-app_name: "demoapp"
-app_port: 8000
-app_home: "/home/{{ app_name }}"
-
-nginx_port: 80
