@@ -1,8 +1,0 @@
-{
-    "live-restore": {{ docker_config.live_restore | lower }},
-    "insecure-registries": {{ docker_config.insecure_registries | to_json }},
-    "registry-mirrors": {{ docker_config.registry_mirrors | to_json }}
-    {% if ansible_distribution == 'RedOS' %},
-    "storage-driver": "overlay2"
-    {% endif %}
-}
